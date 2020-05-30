@@ -42,15 +42,6 @@ def save_result(val_out, val_block_size, image_path, color_mode):
         final_image = np.squeeze(final_image, axis=2)
     Image.fromarray(final_image).save(image_path)
 
-
-def celoss_ones(logits):
-    return -tf.reduce_mean(logits)
-
-
-def celoss_zeros(logits):
-    return tf.reduce_mean(logits)
-
-
 def gradient_penalty(discriminator, batch_x, fake_image):
 
     batchsz = batch_x.shape[0]
@@ -82,8 +73,8 @@ def d_loss_fn(generator, discriminator, batch_z, batch_x, is_training):
     d_fake_logits = discriminator(fake_image, is_training)
     d_real_logits = discriminator(batch_x, is_training)
 
-    d_loss_real = celoss_ones(d_real_logits)
-    d_loss_fake = celoss_zeros(d_fake_logits)
+    d_loss_real = - tf.reduce_mean(d_real_logits)
+    d_loss_fake = tf.reduce_mean(d_fake_logits)
     gp = gradient_penalty(discriminator, batch_x, fake_image)
 
     loss = d_loss_real + d_loss_fake + 10. * gp
@@ -95,7 +86,7 @@ def g_loss_fn(generator, discriminator, batch_z, is_training):
 
     fake_image = generator(batch_z, is_training)
     d_fake_logits = discriminator(fake_image, is_training)
-    loss = celoss_ones(d_fake_logits)
+    loss = - tf.reduce_mean(d_fake_logits)
 
     return loss
 
