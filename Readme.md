@@ -6,4 +6,4 @@
 
 ## 推荐系统相关
 
-1. [MF 模型 ](learnTf2/mf)
+1. [MF 模型 ](Recommender/mf)
