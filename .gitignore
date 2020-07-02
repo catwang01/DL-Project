@@ -1,4 +1,7 @@
+.ipynb_checkpoints
+.idea
 .vscode
+.DS_Store
 # Created by https://www.gitignore.io/api/vscode,python
 # Edit at https://www.gitignore.io/?templates=vscode,python
 
