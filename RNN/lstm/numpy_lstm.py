@@ -1,4 +1,38 @@
 #!/usr/bin/env python
+def reduce_mem(df, verbose=True):
+    numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+    start_mem = df.memory_usage().sum() / 1024 ** 2
+
+    left_df = df.select_dtypes(exclude=numerics)
+    reduce_df = df.select_dtypes(include=numerics)
+    for col in tqdm(reduce_df.columns, desc="Reducing memory"):
+        col_type = reduce_df[col].dtypes
+        if col_type in numerics:
+            c_min = reduce_df[col].min()
+            c_max = reduce_df[col].max()
+            if str(col_type)[:3] == 'int':
+                try_types = [np.int8, np.int16, np.int32, np.int64]
+                for try_type in try_types:
+                    if c_min > np.iinfo(try_type).min and c_max < np.iinfo(try_type).max:
+                        reduce_df[col] = reduce_df[col].astype(try_type)
+                        break
+            else:
+                try_types = [np.float16, np.float32, np.float64]
+                for try_type in try_types:
+                    if c_min > np.finfo(try_type).min and c_max < np.finfo(try_type).max:
+                        reduce_df[col] = reduce_df[col].astype(try_type)
+                        break
+    ret = pd.concat([reduce_df, left_df], axis=1)
+    end_mem = ret.memory_usage().sum() / 1024**2
+    if verbose:
+        print(
+            'Mem. usage decreased to {:5.2f} Mb ({:.1f}% reduction)'.format(
+            end_mem, 100 * (start_mem - end_mem) / start_mem)
+        )
+    return ret
+
+combine_df = reduce_mem(combine_df)
+combine_df.columns
 # coding: utf-8
 
 # [toc]
