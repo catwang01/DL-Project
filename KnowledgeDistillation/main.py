@@ -81,10 +81,7 @@ class anNet_deep(nn.Module):
         x = self.fc(x)
         return x
 
-correct_ratio = []
-
-img_rows = 28
-img_cols = 28
+img_rows, img_cols  = 28, 28
 (X_train, y_train), (X_test, y_test) = load_data()
 X_train = X_train.reshape(X_train.shape[0], 1, img_rows, img_cols)
 X_test = X_test.reshape(X_test.shape[0], 1, img_rows, img_cols)
@@ -118,27 +115,6 @@ student_model = student_model.to(device)
 
 criterion = nn.CrossEntropyLoss()
 criterion2 = nn.KLDivLoss()
-# criterion2 = nn.CrossEntropyLoss()
-
-def soft_crossentropy(x, y):
-    return - torch.mean(torch.sum(y * torch.log(x), dim=1))
-
-def test_soft_crossentropy():
-    import torch
-    import torch.nn.functional as F
-    import numpy as np
-    x = np.random.randn(4, 3)
-    y = np.random.randn(4, 3)
-
-    y1 = soft_crossentropy(F.softmax(torch.tensor(x), dim=1), F.softmax(torch.tensor(y), dim=1))
-    # labels logits
-    y2 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(tf.nn.softmax(y, axis=1), x))
-    tf.nn.softmax_cross_entropy_with_logits(tf.nn.softmax(y, axis=1), x)
-    print("y1: ", y1)
-    print("y2: ", y2)
-
-# test_soft_crossentropy()
-# criterion2 = soft_crossentropy
 
 optimizer = optim.Adam(student_model.parameters(), lr=args.lr)
 
@@ -187,72 +163,3 @@ for epoch in range(args.n_epochs):
     train_one_epoch(student_model, teach_model, trainset)
     validate_one_epoch(student_model, teach_model, valset)
 
-# for epoch in range(200):
-#     loss_sigma = 0.0
-#     correct = 0.0
-#     total = 0.0
-#     for step, data in enumerate(trainload):
-#         inputs, labels = data
-#         inputs = inputs.to(device)
-#         labels = labels.to(device)
-#
-#         optimizer.zero_grad()
-#
-#         outputs = student_model(inputs.float())
-#         loss1 = criterion(outputs, labels)
-#
-#         teacher_outputs = teach_model(inputs.float())
-#         T = 2
-#         outputs_S = F.softmax(outputs / T, dim=1)
-#         outputs_T = F.softmax(teacher_outputs / T, dim=1)
-#         # loss2 = soft_crossentropy(outputs_T, outputs_S) * T * T
-#         loss2 = criterion2(outputs_S, outputs_T) * T * T
-#
-#         loss = loss1 * (1 - alpha) + loss2 * alpha
-#
-#         # loss = loss1
-#         loss.backward()
-#         optimizer.step()
-#
-#         _, predicted = torch.max(outputs.data, dim=1)
-#         total += labels.size(0)
-#         correct += (predicted.cpu() == labels.cpu()).squeeze().sum().numpy()
-#         loss_sigma += loss.item()
-#         if step % 100 == 0:
-#             loss_avg = loss_sigma / 10
-#             loss_sigma = 0.0
-#             print('step: {}/{} loss_avg:{:.2}   Acc:{:.2%}'.format(step, len(trainload), loss_avg, correct / total))
-#
-#     if epoch % 2 == 0:
-#         loss_sigma = 0.0
-#         cls_num = 10
-#         conf_mat = np.zeros([cls_num, cls_num])  # 混淆矩阵
-#         student_model.eval()
-#         for step, data in enumerate(testload):
-#
-#             # 获取图片和标签
-#             images, labels = data
-#             images, labels = Variable(images), Variable(labels)
-#             images = images.to(device)
-#             labels = labels.to(device)
-#             # forward
-#             outputs = student_model(images.float())
-#             outputs.detach_()
-#
-#             # 计算loss
-#             loss = criterion(outputs, labels)
-#             loss_sigma += loss.item()
-#
-#             # 统计
-#             _, predicted = torch.max(outputs.data, 1)
-#             # labels = labels.data    # Variable --> tensor
-#
-#             # 统计混淆矩阵
-#             for j in range(len(labels)):
-#                 cate_i = labels.cpu()[j].numpy()
-#                 pre_i = predicted.cpu()[j].numpy()
-#                 conf_mat[cate_i, pre_i] += 1.0
-#         net_save_path = 'student_net_params_' + str(np.around(conf_mat.trace() / conf_mat.sum(), decimals=4)) + '.pkl'
-#         torch.save(student_model.state_dict(), net_save_path)
-#         print('-------------------------{} set Accuracy:{:.4%}---------------------'.format('Valid',
-#                                                                                             conf_mat.trace() / conf_mat.sum()))
