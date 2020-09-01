@@ -9,19 +9,26 @@ Created on Sat Nov 23 16:39:55 2019
 import torch
 from torch.utils.data import DataLoader
 import torch.utils.data as Data
-import torchvision.transforms as transforms
 import numpy as np
 import os
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import sys
-# from Code.utils.utils import MyDataset, validate, show_confMat
-from tensorboardX import SummaryWriter
-from datetime import datetime
-# from tensorflow.examples.tutorials.mnist import inpuoot_data
+import tensorflow as tf
+import argparse
 from tensorflow.keras.datasets.mnist import load_data
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--alpha", type=float, default=0.5, help="default: 0.5")
+parser.add_argument("--lr", type=float, default=1e-3, help="default: 1e-3")
+parser.add_argument("--log_interval", type=int, default=100, help="default: 100")
+parser.add_argument("--temp", type=int, default=2, help="temperature default: 2")
+parser.add_argument("--train_batch_size", type=int, default=64, help="default: 64")
+parser.add_argument("--test_batch_size", type=int, default=512, help="default: 512")
+parser.add_argument("--n_epochs", type=int, default=200, help="default: 200")
+
+args = parser.parse_args()
 
 class anNet(nn.Module):
     def __init__(self):
@@ -36,20 +43,6 @@ class anNet(nn.Module):
         x = x.view(x.size()[0], -1)
         x = self.fc3(x)
         return x
-
-    def initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                torch.nn.init.xavier_normal_(m.weight.data)
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                torch.nn.init.normal_(m.weight.data, 0, 0.01)
-                m.bias.data.zero_()
-
 
 class anNet_deep(nn.Module):
     def __init__(self):
@@ -88,22 +81,7 @@ class anNet_deep(nn.Module):
         x = self.fc(x)
         return x
 
-    def initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                torch.nn.init.xavier_normal_(m.weight.data)
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-            elif isinstance(m, nn.Linear):
-                torch.nn.init.normal_(m.weight.data, 0, 0.01)
-                m.bias.data.zero_()
-
-
 correct_ratio = []
-alpha = 0.5
 
 img_rows = 28
 img_cols = 28
@@ -113,21 +91,21 @@ X_test = X_test.reshape(X_test.shape[0], 1, img_rows, img_cols)
 
 X_train = X_train.astype('float32')
 X_test = X_test.astype('float32')
-X_train = X_train / 255.0
-X_test = X_test / 255.0
+X_train /= 255.0
+X_test /= 255.0
 
 torch_dataset_train = Data.TensorDataset(torch.from_numpy(np.double(X_train)),
                                          torch.from_numpy(np.int64(y_train)))
 torch_dataset_test = Data.TensorDataset(torch.from_numpy(np.double(X_test)),
                                         torch.from_numpy(np.int64(y_test)))
-trainload = torch.utils.data.DataLoader(
+trainset = torch.utils.data.DataLoader(
     torch_dataset_train,
-    batch_size=64,
+    batch_size=args.train_batch_size,
     shuffle=True)
 
-testload = torch.utils.data.DataLoader(
+valset = torch.utils.data.DataLoader(
     torch_dataset_test,
-    batch_size=512,
+    batch_size=args.test_batch_size,
     shuffle=False)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -137,8 +115,7 @@ teach_model.load_state_dict(torch.load('teach_net_params_0.9895.pkl', map_locati
 
 student_model = anNet()
 student_model = student_model.to(device)
-# model.load_state_dict(torch.load('student_net_params_0.9598.pkl'))
-# model.load_state_dict(torch.load('teach_net_params_0.9895.pkl'))
+
 criterion = nn.CrossEntropyLoss()
 criterion2 = nn.KLDivLoss()
 # criterion2 = nn.CrossEntropyLoss()
@@ -146,40 +123,69 @@ criterion2 = nn.KLDivLoss()
 def soft_crossentropy(x, y):
     return - torch.mean(torch.sum(y * torch.log(x), dim=1))
 
-# import torch
-# import torch.nn.functional as F
-# import numpy as np
-# x = np.random.randn(4, 3)
-# y = np.random.randn(4, 3)
-#
-# soft_crossentropy(F.softmax(torch.tensor(x), dim=1), F.softmax(torch.tensor(y), dim=1))
-# # labels logits
-# tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(tf.nn.softmax(y, axis=1), x))
+def test_soft_crossentropy():
+    import torch
+    import torch.nn.functional as F
+    import numpy as np
+    x = np.random.randn(4, 3)
+    y = np.random.randn(4, 3)
 
-optimizer = optim.Adam(student_model.parameters(), lr=0.001)
+    y1 = soft_crossentropy(F.softmax(torch.tensor(x), dim=1), F.softmax(torch.tensor(y), dim=1))
+    # labels logits
+    y2 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(tf.nn.softmax(y, axis=1), x))
+    tf.nn.softmax_cross_entropy_with_logits(tf.nn.softmax(y, axis=1), x)
+    print("y1: ", y1)
+    print("y2: ", y2)
 
-T = 2
+# test_soft_crossentropy()
+# criterion2 = soft_crossentropy
 
-n_epoch = 200
-for epoch in range(n_epoch):
-    print("Epoch: {}/{}".format(epoch, n_epoch))
-    for step, (x_batch, y_batch) in enumerate(trainload):
+optimizer = optim.Adam(student_model.parameters(), lr=args.lr)
+
+def get_loss(student_pred, teacher_pred, y_true, T, alpha):
+    loss1 = criterion(student_pred, y_true)
+    loss2 = criterion2(F.log_softmax(student_pred / T, dim=1),
+                       F.softmax(teacher_pred / T, dim=1)) * T * T
+    loss = (1 - alpha) * loss1 + alpha * loss2
+    return loss
+
+def train_one_epoch(student_model, teach_model, trainset):
+    for step, (x_batch, y_batch) in enumerate(trainset):
         x_batch = x_batch.float().to(device)
         y_batch = y_batch.to(device)
         student_pred = student_model(x_batch)
         teacher_pred = teach_model(x_batch)
-        loss1 = criterion(student_pred, y_batch)
-        loss2 = criterion2(F.softmax(student_pred / T), F.softmax(teacher_pred / T)) * T * T
-        loss = loss1 + loss2
+        loss = get_loss(student_pred, teacher_pred, y_batch, args.temp, args.alpha)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        acc = (torch.argmax(student_pred, dim=1) == y_batch).sum().float() / y_batch.shape[0]
-        if (step + 1) % 10 == 0:
-            print("Step: {}/{} trainLoss: {:.4} train Acc: {:.4}".format(step+1, len(trainload),
-                                                               loss.item(), acc))
+        acc = (torch.argmax(student_pred, dim=1) == y_batch).float().mean()
+        if (step + 1) % args.log_interval == 0:
+            print("Step: {}/{} trainLoss: {:.4} train Acc: {:.4}".format(step+1, len(trainset),
+                                                                         loss.item(), acc))
 
+def validate_one_epoch(student_model, teach_model, valset):
+    student_model.eval()
+    teach_model.eval()
+    loss_epoch = 0.0
+    total_num = 0
+    correct_epoch = 0
+    for step, (x_batch, y_batch) in enumerate(valset):
+        x_batch = x_batch.float().to(device)
+        y_batch = y_batch.to(device)
+        student_pred = student_model(x_batch)
+        teacher_pred = teach_model(x_batch)
+        loss = get_loss(student_pred, teacher_pred, y_batch, args.temp, args.alpha)
+        loss_epoch += loss.item()
+        total_num += x_batch.shape[0]
+        correct_epoch += (torch.argmax(student_pred, dim=1) == y_batch).float().sum()
+    print("Evaluation: val Loss: {:.4} val Acc: {:.4}".format( loss_epoch / len(valset),
+                                                               correct_epoch / total_num))
 
+for epoch in range(args.n_epochs):
+    print("Epoch: {}/{}".format(epoch + 1, args.n_epochs))
+    train_one_epoch(student_model, teach_model, trainset)
+    validate_one_epoch(student_model, teach_model, valset)
 
 # for epoch in range(200):
 #     loss_sigma = 0.0
