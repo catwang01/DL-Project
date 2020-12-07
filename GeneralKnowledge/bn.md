@@ -4,6 +4,17 @@
 
 bn 这个东西为什么有效，目前还没有一个统一的认知，笔者就搜集一些资料，将目前的一些观点进行整理罗列。
 
+## BN 如何做
+
+### 普通的 MLP
+
+![](https://gitee.com/EdwardElric_1683260718/picture_bed/raw/master/img/20201207194303.png)
+
+### 图像问题
+
+![](https://gitee.com/EdwardElric_1683260718/picture_bed/raw/master/img/20201207194240.png)
+
+将统一 channel 的 feature map 标准化。
 ## BN 为什么要 rescale
 
 1. 这种解释来自 [ 1 ]。认为，
@@ -48,9 +59,15 @@ bn 这个东西为什么有效，目前还没有一个统一的认知，笔者�
 
 ### 3. 网络解耦
 
-#### 观点3: bn 让网络耦合
+#### 观点3: bn 让网络解耦合
 
 笔者比较认同观点三的解释。观点三认为，bn 通过 normalization + rescaling，将复杂的分布信息抽取成为 $\beta$ 和 $\gamma$ 两个参数。这是，下层网络在学习是，不太需要考虑上层网络之间错综复杂的关系，而主要之考虑 $\beta$ 和 $\gamma$ 两个参数就可以了。因此对于下层网路的学习更加友好，不会出现上层网络参数之间的效果相互抵消，最后梯度更新缓慢的问题。
+
+### 4. 使损失平面光滑
+
+有人证明了，bn 可以使损失平面满足 lipschitz 连续。因此损失平面比较光滑，因而好优化。
+
+![](https://gitee.com/EdwardElric_1683260718/picture_bed/raw/master/img/20201207194007.png)
 
 ## bn 不适合于所有的应用
 
@@ -60,3 +77,4 @@ bn 这个东西为什么有效，目前还没有一个统一的认知，笔者�
 # References
 1. [详解深度学习中的Normalization，BN/LN/WN - 知乎](https://zhuanlan.zhihu.com/p/33173246)
 2. [(10 封私信 / 80 条消息) NTIRE2017夺冠的EDSR去掉了Batch Normalization层就获得了提高为什么？ - 知乎](https://www.zhihu.com/question/62599196)
+3. [模型优化之Batch Normalization - 知乎](https://zhuanlan.zhihu.com/p/54171297)
